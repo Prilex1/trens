@@ -17,7 +17,6 @@
             <!-- Filtres de Línia -->
             <div class="mt-6 flex flex-wrap justify-center gap-2" id="line-filters">
                 <button onclick="filterLine('ALL')" class="px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white shadow transition">Totes</button>
-                <!-- S'ompliran dinàmicament les línies -->
             </div>
         </header>
 
@@ -62,7 +61,6 @@
 
         async function fetchHistoryData() {
             try {
-                // Demanem l'històric de l'últim mes (per exemple, 30 dies) i les línies en paral·lel
                 const [historyRes, linesRes] = await Promise.all([
                     fetch('/api/export?type=incidents&days=30&format=json'),
                     fetch('/api/lines')
@@ -75,9 +73,17 @@
                 const historyData = await historyRes.json();
                 const linesData = await linesRes.json();
 
-                // L'estructura de l'export pot venir com a array directe o dins d'una propietat data
+                // Assegurem que tractem amb arrays de manera segura
                 allIncidents = Array.isArray(historyData) ? historyData : (historyData.data || historyData.items || []);
-                const linesArray = Array.isArray(linesData) ? linesData : (linesData.data || []);
+                
+                let linesArray = [];
+                if (Array.isArray(linesData)) {
+                    linesArray = linesData;
+                } else if (linesData && Array.isArray(linesData.data)) {
+                    linesArray = linesData.data;
+                } else if (linesData && typeof linesData === 'object') {
+                    linesArray = Object.values(linesData).filter(item => typeof item === 'object' && item !== null);
+                }
 
                 renderLineFilters(linesArray);
                 updateView();
@@ -95,13 +101,13 @@
 
         function renderLineFilters(lines) {
             const container = document.getElementById('line-filters');
-            // Mantenim el botó de "Totes"
-            let html = `<button onclick="filterLine('ALL')" class="line-btn px-3 py-1.5 text-sm font-semibold rounded-lg ${selectedLine === 'ALL' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'} transition" data-line="ALL">Totes</button>`;
+            let html = `<button onclick="filterLine('ALL')" class="line-btn px-3 py-1.5 text-sm font-semibold rounded-lg ${selectedLine === 'ALL' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'} transition" data-line="ALL">Totes</button>`;
             
             lines.forEach(line => {
                 const lineName = line.name || line.id;
+                if (!lineName) return;
                 const isActive = selectedLine === lineName;
-                html += `<button onclick="filterLine('${lineName}')" class="line-btn px-3 py-1.5 text-sm font-semibold rounded-lg ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'} transition" data-line="${lineName}">${lineName}</button>`;
+                html += `<button onclick="filterLine('${lineName}')" class="line-btn px-3 py-1.5 text-sm font-semibold rounded-lg ${isActive ? 'bg-indigo-600 text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'} transition" data-line="${lineName}">${lineName}</button>`;
             });
 
             container.innerHTML = html;
@@ -110,7 +116,6 @@
         function filterLine(line) {
             selectedLine = line;
             
-            // Actualitzar estils dels botons
             document.querySelectorAll('.line-btn').forEach(btn => {
                 if (btn.getAttribute('data-line') === line) {
                     btn.className = "line-btn px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white transition shadow";
@@ -123,7 +128,6 @@
         }
 
         function updateView() {
-            // Filtrar incidents segons la línia seleccionada
             const filtered = selectedLine === 'ALL' 
                 ? allIncidents 
                 : allIncidents.filter(inc => (inc.line || inc.liniename || '').toUpperCase() === selectedLine.toUpperCase());
@@ -135,9 +139,10 @@
         function renderStats(incidents) {
             const container = document.getElementById('history-stats');
             const total = incidents.length;
-            
-            // Comptar per severitat si existeix
-            const critical = incidents.filter(inc => (inc.severity || '').toLowerCase() === 'critica' || (inc.severity || '').toLowerCase() === 'alta').length;
+            const critical = incidents.filter(inc => {
+                const sev = (inc.severity || '').toLowerCase();
+                return sev === 'critica' || sev === 'alta';
+            }).length;
             
             container.innerHTML = `
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
@@ -164,7 +169,6 @@
                 return;
             }
 
-            // Ordenar de més recent a més antic si tenen data
             const sorted = [...incidents].sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
 
             container.innerHTML = sorted.map(inc => {
