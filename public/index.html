@@ -44,7 +44,7 @@
             <!-- Llistat Detallat de Cada Incidència -->
             <div class="bg-white shadow-sm rounded-xl p-6 border border-slate-100">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-bold text-slate-900">Llistat Detallat d'Incidències</h2>
+                    <h2 class="text-xl font-bold text-slate-900">Resum de Línies Afectades</h2>
                     <span id="incidents-count" class="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full font-medium"></span>
                 </div>
 
@@ -59,34 +59,16 @@
     <script>
         async function fetchAllData() {
             try {
-                const [statsRes, incidentsRes] = await Promise.all([
-                    fetch('/api/stats'),
-                    fetch('/api/incidents')
-                ]);
-
-                if (!statsRes.ok || !incidentsRes.ok) {
+                const response = await fetch('/api/stats');
+                if (!response.ok) {
                     throw new Error('Error al carregar les dades des del servidor.');
                 }
 
-                const statsJson = await statsRes.json();
-                const incidentsJson = await incidentsRes.json();
+                const json = await response.json();
+                const data = json.data || json;
 
-                console.log("ESTAT INCIDÈNCIES REBUT:", incidentsJson); // <-- Mira això a la consola (F12)
-
-                const statsData = statsJson.data || statsJson;
-                
-                // Extreure l'array d'incidències de manera flexible segons provingui
-                let incidentsArray = [];
-                const rawIncidents = incidentsJson.data || incidentsJson.items || incidentsJson;
-                
-                if (Array.isArray(rawIncidents)) {
-                    incidentsArray = rawIncidents;
-                } else if (typeof rawIncidents === 'object' && rawIncidents !== null) {
-                    incidentsArray = Object.values(rawIncidents).filter(item => typeof item === 'object' && item !== null);
-                }
-
-                renderStats(statsData);
-                renderIncidentsList(incidentsArray);
+                renderStats(data);
+                renderIncidentsList(data);
 
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('content').classList.remove('hidden');
@@ -147,35 +129,26 @@
             }
         }
 
-        function renderIncidentsList(incidents) {
+        function renderIncidentsList(data) {
             const container = document.getElementById('incidents-list');
-            document.getElementById('incidents-count').textContent = `${incidents.length} actives`;
-
-            if (incidents.length === 0) {
-                container.innerHTML = '<p class="text-slate-500 text-center py-8">Cap incidència greu reportada en aquest moment. 🎉</p>';
-                return;
-            }
-
-            container.innerHTML = incidents.map(inc => {
-                const lineName = inc.line || inc.liniename || inc.linia || 'General';
-                const titleText = inc.title || inc.message || inc.titol || 'Incidència a la via';
-                const descText = inc.description || inc.descripcio || inc.detall || 'Sense descripció addicional.';
-                const severity = inc.severity || inc.gravetat || 'Mitjana';
-                const badgeColor = ['critica', 'alta', 'critical'].includes(severity.toLowerCase()) ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800';
-
-                return `
+            
+            if (data.mostAffectedLine) {
+                document.getElementById('incidents-count').textContent = `Destacada: ${data.mostAffectedLine.line}`;
+                container.innerHTML = `
                     <div class="border border-slate-100 bg-slate-50/50 p-4 rounded-xl flex flex-col justify-between gap-2 hover:bg-slate-50 transition">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
-                                <span class="font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded text-sm">${lineName}</span>
-                                <span class="text-xs font-semibold px-2 py-0.5 rounded ${badgeColor}">${severity}</span>
+                                <span class="font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded text-sm">${data.mostAffectedLine.line}</span>
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-red-100 text-red-800">Crítica / Recurrent</span>
                             </div>
                         </div>
-                        <h3 class="font-bold text-slate-900 mt-1">${titleText}</h3>
-                        <p class="text-sm text-slate-600">${descText}</p>
+                        <h3 class="font-bold text-slate-900 mt-1">${data.mostAffectedLine.name}</h3>
+                        <p class="text-sm text-slate-600">Aquesta línia concentra actualment el major volum d'incidències registrades al sistema.</p>
                     </div>
                 `;
-            }).join('');
+            } else {
+                container.innerHTML = '<p class="text-slate-500 text-center py-8">Cap incidència reportada en aquest moment. 🎉</p>';
+            }
         }
 
         fetchAllData();
