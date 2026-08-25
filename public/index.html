@@ -73,9 +73,20 @@
                 const historyData = await historyRes.json();
                 const linesData = await linesRes.json();
 
-                // Assegurem que tractem amb arrays de manera segura
-                allIncidents = Array.isArray(historyData) ? historyData : (historyData.data || historyData.items || []);
+                // Conversió segura per a l'històric d'incidències
+                if (Array.isArray(historyData)) {
+                    allIncidents = historyData;
+                } else if (historyData && Array.isArray(historyData.data)) {
+                    allIncidents = historyData.data;
+                } else if (historyData && Array.isArray(historyData.items)) {
+                    allIncidents = historyData.items;
+                } else if (historyData && typeof historyData === 'object') {
+                    allIncidents = Object.values(historyData).filter(item => typeof item === 'object' && item !== null);
+                } else {
+                    allIncidents = [];
+                }
                 
+                // Conversió segura per a les línies
                 let linesArray = [];
                 if (Array.isArray(linesData)) {
                     linesArray = linesData;
