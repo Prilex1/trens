@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rodalies de Catalunya - Històric d'Incidències</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto space-y-8">
+        <!-- Capçalera -->
+        <header class="text-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">🚆 Històric de Rodalies de Catalunya</h1>
+            <p class="text-slate-500 mt-2">Anàlisi de l'històric d'incidències i fiabilitat de les línies</p>
+            
+            <!-- Filtres de Línia -->
+            <div class="mt-6 flex flex-wrap justify-center gap-2" id="line-filters">
+                <button onclick="filterLine('ALL')" class="px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white shadow transition">Totes</button>
+                <!-- S'ompliran dinàmicament les línies -->
+            </div>
+        </header>
+
+        <!-- Indicador de Càrrega -->
+        <div id="loading" class="text-center py-16">
+            <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-indigo-600 border-t-transparent"></div>
+            <p class="text-slate-600 mt-3 font-medium">Carregant l'històric d'incidències...</p>
+        </div>
+
+        <!-- Missatge d'Error -->
+        <div id="error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+            <strong class="font-bold">Error! </strong>
+            <span id="error-message"></span>
+        </div>
+
+        <!-- Contingut Principal -->
+        <div id="content" class="hidden space-y-6">
+            
+            <!-- Resum de l'Històric -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="history-stats">
+                <!-- S'omplirà dinàmicament -->
+            </div>
+
+            <!-- Llistat Detallat de l'Històric -->
+            <div class="bg-white shadow-sm rounded-xl p-6 border border-slate-100">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold text-slate-900">Registre d'Incidències Passades</h2>
+                    <span id="results-count" class="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-full font-medium"></span>
+                </div>
+
+                <div id="incidents-list" class="space-y-4">
+                    <!-- S'omplirà dinàmicament -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let allIncidents = [];
+        let selectedLine = 'ALL';
+
+        async function fetchHistoryData() {
+            try {
+                // Demanem l'històric de l'últim mes (per exemple, 30 dies) i les línies en paral·lel
+                const [historyRes, linesRes] = await Promise.all([
+                    fetch('/api/export?type=incidents&days=30&format=json'),
+                    fetch('/api/lines')
+                ]);
+
+                if (!historyRes.ok || !linesRes.ok) {
+                    throw new Error('Error al carregar les dades històriques des del servidor.');
+                }
+
+                const historyData = await historyRes.json();
+                const linesData = await linesRes.json();
+
+                // L'estructura de l'export pot venir com a array directe o dins d'una propietat data
+                allIncidents = Array.isArray(historyData) ? historyData : (historyData.data || historyData.items || []);
+                const linesArray = Array.isArray(linesData) ? linesData : (linesData.data || []);
+
+                renderLineFilters(linesArray);
+                updateView();
+
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('content').classList.remove('hidden');
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error-message').textContent = err.message;
+                document.getElementById('error').classList.remove('hidden');
+            }
+        }
+
+        function renderLineFilters(lines) {
+            const container = document.getElementById('line-filters');
+            // Mantenim el botó de "Totes"
+            let html = `<button onclick="filterLine('ALL')" class="line-btn px-3 py-1.5 text-sm font-semibold rounded-lg ${selectedLine === 'ALL' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'} transition" data-line="ALL">Totes</button>`;
+            
+            lines.forEach(line => {
+                const lineName = line.name || line.id;
+                const isActive = selectedLine === lineName;
+                html += `<button onclick="filterLine('${lineName}')" class="line-btn px-3 py-1.5 text-sm font-semibold rounded-lg ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'} transition" data-line="${lineName}">${lineName}</button>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function filterLine(line) {
+            selectedLine = line;
+            
+            // Actualitzar estils dels botons
+            document.querySelectorAll('.line-btn').forEach(btn => {
+                if (btn.getAttribute('data-line') === line) {
+                    btn.className = "line-btn px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white transition shadow";
+                } else {
+                    btn.className = "line-btn px-3 py-1.5 text-sm font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition";
+                }
+            });
+
+            updateView();
+        }
+
+        function updateView() {
+            // Filtrar incidents segons la línia seleccionada
+            const filtered = selectedLine === 'ALL' 
+                ? allIncidents 
+                : allIncidents.filter(inc => (inc.line || inc.liniename || '').toUpperCase() === selectedLine.toUpperCase());
+
+            renderStats(filtered);
+            renderIncidentsList(filtered);
+        }
+
+        function renderStats(incidents) {
+            const container = document.getElementById('history-stats');
+            const total = incidents.length;
+            
+            // Comptar per severitat si existeix
+            const critical = incidents.filter(inc => (inc.severity || '').toLowerCase() === 'critica' || (inc.severity || '').toLowerCase() === 'alta').length;
+            
+            container.innerHTML = `
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-sm font-medium text-slate-500">Total incidències (30 dies)</p>
+                    <p class="text-2xl font-bold text-slate-900 mt-1">${total}</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-sm font-medium text-slate-500">Incidències Greus / Crítiques</p>
+                    <p class="text-2xl font-bold text-red-600 mt-1">${critical}</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-sm font-medium text-slate-500">Línia seleccionada</p>
+                    <p class="text-2xl font-bold text-indigo-600 mt-1">${selectedLine}</p>
+                </div>
+            `;
+        }
+
+        function renderIncidentsList(incidents) {
+            const container = document.getElementById('incidents-list');
+            document.getElementById('results-count').textContent = `${incidents.length} registres`;
+
+            if (incidents.length === 0) {
+                container.innerHTML = '<p class="text-slate-500 text-center py-8">No s\'han trobat incidències registrades per a aquesta selecció.</p>';
+                return;
+            }
+
+            // Ordenar de més recent a més antic si tenen data
+            const sorted = [...incidents].sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
+
+            container.innerHTML = sorted.map(inc => {
+                const dateStr = inc.date || inc.created_at ? new Date(inc.date || inc.created_at).toLocaleDateString('ca-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data no especificada';
+                const severity = inc.severity || 'Mitjana';
+                const badgeColor = severity.toLowerCase() === 'critica' || severity.toLowerCase() === 'alta' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800';
+
+                return `
+                    <div class="border border-slate-100 bg-slate-50/50 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:bg-slate-50 transition">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-sm">${inc.line || inc.liniename || 'General'}</span>
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded ${badgeColor}">${severity}</span>
+                                <span class="text-xs text-slate-400">${dateStr}</span>
+                            </div>
+                            <h3 class="font-semibold text-slate-900">${inc.title || inc.message || 'Incidència a la via'}</h3>
+                            <p class="text-sm text-slate-600">${inc.description || 'Sense descripció addicional.'}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        fetchHistoryData();
+    </script>
+</body>
+</html>
