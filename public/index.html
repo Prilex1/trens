@@ -1,69 +1,21 @@
-<!DOCTYPE html>
-<html lang="ca">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rodalies de Catalunya - Estadístiques i Històric</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
-
-    <div class="max-w-5xl mx-auto space-y-8">
-        <!-- Capçalera -->
-        <header class="text-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">🚆 Estat i Històric de Rodalies</h1>
-            <p class="text-slate-500 mt-2">Resum analític basat en l'API de El Tren no Funca</p>
-            <p id="last-update" class="text-xs text-slate-400 mt-2"></p>
-        </header>
-
-        <!-- Indicador de Càrrega -->
-        <div id="loading" class="text-center py-16">
-            <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-indigo-600 border-t-transparent"></div>
-            <p class="text-slate-600 mt-3 font-medium">Carregant dades analítiques...</p>
-        </div>
-
-        <!-- Missatge d'Error -->
-        <div id="error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-            <strong class="font-bold">Error! </strong>
-            <span id="error-message"></span>
-        </div>
-
-        <!-- Contingut Principal -->
-        <div id="content" class="hidden space-y-6">
-            
-            <!-- Resum d'Incidències (Targetes) -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="stats-grid">
-                <!-- S'omplirà dinàmicament -->
-            </div>
-
-            <!-- Detall de la Línia més afectada -->
-            <div class="bg-white shadow-sm rounded-xl p-6 border border-slate-100" id="affected-card">
-                <h2 class="text-xl font-bold text-slate-900 mb-4">Línia amb més incidències</h2>
-                <div id="most-affected-content" class="p-4 bg-indigo-50 border-l-4 border-indigo-600 rounded-r-xl">
-                    <!-- S'omplirà dinàmicament -->
-                </div>
-            </div>
-
-        </div>
-    </div>
-
-    <script>
+<script>
         async function fetchDashboardData() {
             try {
-                // Fem servir l'endpoint d'estadístiques generals de l'API
                 const response = await fetch('/api/stats');
+                const jsonText = await response.text(); // Llegim primer com a text per veure-ho tot
+                
+                console.log("Resposta crua:", jsonText);
 
-                if (!response.ok) {
-                    throw new Error('Error al carregar les estadístiques des del servidor.');
-                }
-
-                const data = await response.json();
-                console.log("Dades rebudes de stats:", data);
-
-                renderDashboard(data);
-
-                document.getElementById('loading').classList.add('hidden');
+                // Mostrem el JSON cru a la pantalla temporalment per diagnosticar
+                document.getElementById('most-affected-content').innerHTML = `
+                    <p class="font-bold text-red-600 mb-2">DEBUG - JSON rebut del servidor:</p>
+                    <pre class="text-xs overflow-auto bg-slate-900 text-green-400 p-2 rounded">${jsonText}</pre>
+                `;
                 document.getElementById('content').classList.remove('hidden');
+                document.getElementById('loading').classList.add('hidden');
+
+                const data = JSON.parse(jsonText);
+                // ... (aquí aniria el render si tot quadra)
 
             } catch (err) {
                 console.error(err);
@@ -73,55 +25,5 @@
             }
         }
 
-        function renderDashboard(data) {
-            // Última actualització
-            if (data.lastUpdate) {
-                const date = new Date(data.lastUpdate);
-                document.getElementById('last-update').textContent = `Última actualització: ${date.toLocaleString('ca-ES')}`;
-            }
-
-            // Graella de mètriques principals
-            const grid = document.getElementById('stats-grid');
-            grid.innerHTML = `
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
-                    <p class="text-sm font-medium text-slate-500">Incidències Avui</p>
-                    <p class="text-3xl font-extrabold text-slate-900 mt-1">${data.totalIncidentsToday ?? 0}</p>
-                </div>
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
-                    <p class="text-sm font-medium text-slate-500">Incidències (Setmana)</p>
-                    <p class="text-3xl font-extrabold text-amber-600 mt-1">${data.totalIncidentsWeek ?? 0}</p>
-                </div>
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
-                    <p class="text-sm font-medium text-slate-500">Incidències (Mes)</p>
-                    <p class="text-3xl font-extrabold text-red-600 mt-1">${data.totalIncidentsMonth ?? 0}</p>
-                </div>
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
-                    <p class="text-sm font-medium text-slate-500">Línies Afectades</p>
-                    <p class="text-3xl font-extrabold text-indigo-600 mt-1">${data.linesAffected ?? 0}</p>
-                </div>
-            `;
-
-            // Línia més afectada
-            const affectedContainer = document.getElementById('most-affected-content');
-            if (data.mostAffectedLine) {
-                const m = data.mostAffectedLine;
-                affectedContainer.innerHTML = `
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                        <div>
-                            <span class="text-2xl font-black text-indigo-700">${m.line}</span>
-                            <h3 class="font-bold text-slate-900 text-lg mt-0.5">${m.name}</h3>
-                        </div>
-                        <div class="flex gap-4 text-sm font-semibold">
-                            <span class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">Incidències: ${m.incidents}</span>
-                        </div>
-                    </div>
-                `;
-            } else {
-                affectedContainer.innerHTML = `<p class="text-slate-600">No hi ha dades de línies afectades actualment.</p>`;
-            }
-        }
-
         fetchDashboardData();
     </script>
-</body>
-</html>
