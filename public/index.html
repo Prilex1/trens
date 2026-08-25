@@ -59,7 +59,6 @@
     <script>
         async function fetchAllData() {
             try {
-                // Demanem en paral·lel les estadístiques globals i el llistat d'incidències
                 const [statsRes, incidentsRes] = await Promise.all([
                     fetch('/api/stats'),
                     fetch('/api/incidents')
@@ -72,18 +71,18 @@
                 const statsJson = await statsRes.json();
                 const incidentsJson = await incidentsRes.json();
 
+                console.log("ESTAT INCIDÈNCIES REBUT:", incidentsJson); // <-- Mira això a la consola (F12)
+
                 const statsData = statsJson.data || statsJson;
                 
-                // Extraure l'array d'incidències de manera segura
+                // Extreure l'array d'incidències de manera flexible segons provingui
                 let incidentsArray = [];
-                if (Array.isArray(incidentsJson)) {
-                    incidentsArray = incidentsJson;
-                } else if (incidentsJson && Array.isArray(incidentsJson.data)) {
-                    incidentsArray = incidentsJson.data;
-                } else if (incidentsJson && Array.isArray(incidentsJson.items)) {
-                    incidentsArray = incidentsJson.items;
-                } else if (incidentsJson && typeof incidentsJson === 'object') {
-                    incidentsArray = Object.values(incidentsJson).filter(item => typeof item === 'object' && item !== null);
+                const rawIncidents = incidentsJson.data || incidentsJson.items || incidentsJson;
+                
+                if (Array.isArray(rawIncidents)) {
+                    incidentsArray = rawIncidents;
+                } else if (typeof rawIncidents === 'object' && rawIncidents !== null) {
+                    incidentsArray = Object.values(rawIncidents).filter(item => typeof item === 'object' && item !== null);
                 }
 
                 renderStats(statsData);
